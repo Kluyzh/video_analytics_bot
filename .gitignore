@@ -156,7 +156,7 @@ db.json
 
 sent_emails/
 
-*.json
+# *.json
 yookassa.py
 
 for_webhook.py

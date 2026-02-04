@@ -1,0 +1,13 @@
+venv
+.git
+db.sqlite3
+.idea
+.vscode
+.env
+__pycache__
+*.pyc
+Dockerfile
+docker-compose.yml
+README.md
+yookassa.py
+request_to_bot.py
