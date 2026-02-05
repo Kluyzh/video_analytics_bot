@@ -1,8 +1,11 @@
-import asyncpg
+import datetime
 import json
+import re
+
+import asyncpg
+
 from config import config
 from logger import logger
-import datetime
 
 
 class Database:
@@ -23,7 +26,7 @@ class Database:
             await self.pool.close()
 
     async def execute_query(self, query: str):
-        """Выполнить SQL запрос и вернуть одно значение (для бота)"""
+        """Выполнить SQL запрос и вернуть одно значение."""
         async with self.pool.acquire() as connection:
             try:
                 result = await connection.fetch(query)
@@ -42,71 +45,23 @@ class Database:
 
     def _parse_datetime(self, dt_str):
         """Преобразует строку в datetime объект."""
-        if dt_str is None:
-            return None
+        dt_str = re.sub(r'\.\d+', '', dt_str)
 
-        try:
-            if isinstance(dt_str, datetime.datetime):
-                if dt_str.tzinfo is not None:
-                    return dt_str.astimezone(
-                        datetime.timezone.utc
-                    ).replace(tzinfo=None)
-                return dt_str
+        if dt_str.endswith('Z'):
+            dt_str = dt_str[:-1] + '+00:00'
 
-            if isinstance(dt_str, str):
-                import re
-                dt_str = re.sub(r'\.\d+', '', dt_str)
+        dt = datetime.datetime.fromisoformat(dt_str)
 
-                if dt_str.endswith('Z'):
-                    dt_str = dt_str[:-1] + '+00:00'
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(datetime.timezone.utc)
+            dt = dt.replace(tzinfo=None)
 
-                dt = datetime.datetime.fromisoformat(dt_str)
+        return dt
 
-                if dt.tzinfo is not None:
-                    dt = dt.astimezone(datetime.timezone.utc)
-                    dt = dt.replace(tzinfo=None)
-
-                return dt
-
-            return None
-
-        except Exception as e:
-            logger.warning(f'Warning: Could not parse datetime {dt_str}: {e}')
-            return datetime.datetime.utcnow()
-
-    async def init_database(self, json_file_path: str = 'videos.json'):
-        """Инициализировать базу данных и загрузить данные из JSON."""
-        create_tables_sql = """
-        CREATE TABLE IF NOT EXISTS videos (
-            id VARCHAR(255) PRIMARY KEY,
-            creator_id VARCHAR(255),
-            video_created_at TIMESTAMP,
-            views_count INTEGER,
-            likes_count INTEGER,
-            comments_count INTEGER,
-            reports_count INTEGER,
-            created_at TIMESTAMP,
-            updated_at TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS video_snapshots (
-            id VARCHAR(255) PRIMARY KEY,
-            video_id VARCHAR(255) REFERENCES videos(id) ON DELETE CASCADE,
-            views_count INTEGER,
-            likes_count INTEGER,
-            comments_count INTEGER,
-            reports_count INTEGER,
-            delta_views_count INTEGER,
-            delta_likes_count INTEGER,
-            delta_comments_count INTEGER,
-            delta_reports_count INTEGER,
-            created_at TIMESTAMP,
-            updated_at TIMESTAMP
-        );
-        """
+    async def load_data(self, json_file_path: str = 'data/videos.json'):
+        """Загрузить данные из JSON."""
 
         async with self.pool.acquire() as connection:
-            await connection.execute(create_tables_sql)
 
             count_result = await connection.fetchval(
                 'SELECT COUNT(*) FROM videos'
@@ -147,10 +102,11 @@ class Database:
                         )
                         await connection.execute(
                             """
-                            INSERT INTO videos
-                            (id, creator_id, video_created_at, views_count,
-                            likes_count, comments_count, reports_count,
-                            created_at, updated_at)
+                            INSERT INTO videos (
+                                id, creator_id, video_created_at, views_count,
+                                likes_count, comments_count, reports_count,
+                                created_at, updated_at
+                            )
                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                             ON CONFLICT (id) DO NOTHING
                             """,
@@ -178,14 +134,17 @@ class Database:
                             )
                             await connection.execute(
                                 """
-                                INSERT INTO video_snapshots
-                                (id, video_id, views_count, likes_count,
-                                 comments_count, reports_count,
-                                 delta_views_count,
-                                 delta_likes_count, delta_comments_count,
-                                 delta_reports_count, created_at, updated_at)
-                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-                                        $10, $11, $12)
+                                INSERT INTO video_snapshots (
+                                    id, video_id, views_count, likes_count,
+                                    comments_count, reports_count,
+                                    delta_views_count,
+                                    delta_likes_count, delta_comments_count,
+                                    delta_reports_count, created_at, updated_at
+                                )
+                                VALUES (
+                                    $1, $2, $3, $4, $5, $6, $7,
+                                    $8, $9, $10, $11, $12
+                                )
                                 ON CONFLICT (id) DO NOTHING
                                 """,
                                 snapshot.get('id'),

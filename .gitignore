@@ -144,20 +144,3 @@ dmypy.json
 .history/
 
 .mypy_cache
-
-# папки со статикой и медиа
-media/
-
-sent_emails/
-
-.isort.cfg
-
-db.json
-
-sent_emails/
-
-# *.json
-yookassa.py
-
-for_webhook.py
-request_to_bot.py

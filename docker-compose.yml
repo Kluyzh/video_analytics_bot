@@ -20,7 +20,7 @@ services:
       db:
         condition: service_healthy
     command: >
-      sh -c "python init_db.py &&
+      sh -c "python load_data.py &&
              python bot.py"
     volumes:
       - ./data:/app/data
