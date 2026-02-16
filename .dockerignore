@@ -11,3 +11,4 @@ docker-compose.yml
 README.md
 yookassa.py
 request_to_bot.py
+docker-compose.production.yml
